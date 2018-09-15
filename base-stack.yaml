@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Non-critical parts like codedeploy, alerts, and more
+Parameters:
+  AsgGroup:
+    Type: String
+    Description: Autoscaling group from app stack
+Resources:
+  CDServiceRole: #CodeDeploy service role
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                 - codedeploy.amazonaws.com
+            Action:
+                 - sts:AssumeRole
+      Path: "/"
+  CDPolicy: #create CodeDeploy policy
+    Type: AWS::IAM::Policy
+    DependsOn: CDServiceRole
+    Properties:
+      PolicyName: CDPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - codecommit:BatchGetRepositories
+              - codecommit:Get*
+              - codecommit:GitPull
+              - codecommit:List*
+              - autoscaling:*
+              - codedeploy:*
+              - ec2:*
+              - cloudwatch:*
+              - elasticloadbalancing:*
+              - iam:AddRoleToInstanceProfile
+              - iam:CreateInstanceProfile
+              - iam:CreateRole
+              - iam:DeleteInstanceProfile
+              - iam:DeleteRole
+              - iam:DeleteRolePolicy
+              - iam:GetInstanceProfile
+              - iam:GetRole
+              - iam:GetRolePolicy
+              - iam:ListInstanceProfilesForRole
+              - iam:ListRolePolicies
+              - iam:ListRoles
+              - iam:PassRole
+              - iam:PutRolePolicy
+              - iam:RemoveRoleFromInstanceProfile
+              - s3:*
+            Resource: "*"
+      Roles:
+        - !Ref CDServiceRole
+  CodeDeploy:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ComputePlatform: Server
+  DeploymentGroup:
+   Type: AWS::CodeDeploy::DeploymentGroup
+   DependsOn: CDPolicy
+   Properties:
+    ApplicationName: !Ref CodeDeploy
+    AutoScalingGroups:
+      - !Ref AsgGroup
+    DeploymentConfigName: CodeDeployDefault.OneAtATime
+    DeploymentStyle:
+      DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+      DeploymentType: IN_PLACE
+    ServiceRoleArn: !GetAtt CDServiceRole.Arn
+  CPServiceRole: #CodePipeline service role
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  CPPolicy: #create codepipeline policy
+    Type: AWS::IAM::Policy
+    DependsOn: CPServiceRole
+    Properties:
+      PolicyName: CPPolicy
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:GetBucketVersioning
+            Resource: "*"
+            Effect: Allow
+          - Action:
+              - s3:PutObject
+            Resource:
+              - arn:aws:s3:::codepipeline*
+            Effect: Allow
+          - Action:
+              - codecommit:CancelUploadArchive
+              - codecommit:GetBranch
+              - codecommit:GetCommit
+              - codecommit:GetUploadArchiveStatus
+              - codecommit:UploadArchive
+            Resource: "*"
+            Effect: Allow
+          - Action:
+              - codedeploy:CreateDeployment
+              - codedeploy:GetApplicationRevision
+              - codedeploy:GetDeployment
+              - codedeploy:GetDeploymentConfig
+              - codedeploy:RegisterApplicationRevision
+            Resource: "*"
+            Effect: Allow
+          - Action:
+              - ec2:*
+              - elasticloadbalancing:*
+              - autoscaling:*
+              - cloudwatch:*
+              - s3:*
+              - sns:*
+              - cloudformation:*
+              - rds:*
+              - sqs:*
+              - ecs:*
+              - iam:PassRole
+            Resource: "*"
+            Effect: Allow
+          - Action:
+              - lambda:InvokeFunction
+              - lambda:ListFunctions
+            Resource: "*"
+            Effect: Allow
+          - Action:
+              - cloudformation:CreateStack
+              - cloudformation:DeleteStack
+              - cloudformation:DescribeStacks
+              - cloudformation:UpdateStack
+              - cloudformation:CreateChangeSet
+              - cloudformation:DeleteChangeSet
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:SetStackPolicy
+              - cloudformation:ValidateTemplate
+              - iam:PassRole
+            Resource: "*"
+            Effect: Allow
+          - Action:
+              - codebuild:BatchGetBuilds
+              - codebuild:StartBuild
+            Resource: "*"
+            Effect: Allow
+      Roles:
+        - !Ref CPServiceRole
+  ArtifactBucket: #bucket for artifacts
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn:
+      - ArtifactBucket
+      - CPPolicy
+      - CodeDeploy
+    Properties:
+      RoleArn: !GetAtt CPServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                -  Name: Application
+              Configuration:
+                Owner: sjoerdsantema
+                Repo: loremipsum
+                Branch: master
+                OAuthToken: "340dd708974ad6e6e122a956033387df5902480e"
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployApplication
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CodeDeploy
+              InputArtifacts:
+                - Name: Application
+              Configuration:
+                ApplicationName: !Ref CodeDeploy
+                DeploymentGroupName: !Ref DeploymentGroup
+              RunOrder: 2
+  SpendingAlarm: #prevent things breaking the bank
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarm if spending is over 50USD this month"
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Statistic: Maximum
+      Period: '21600'
+      EvaluationPeriods: '1'
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlarmTopic
+      InsufficientDataActions:
+        - !Ref AlarmTopic
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: "sjoerdsantema@gmail.com"
+          Protocol: 'email'

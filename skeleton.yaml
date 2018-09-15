@@ -1,0 +1,297 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Skeleton network template 
+Resources:
+  VPC: #first create a standard VPC with attached igw
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: Template Generated VPC
+  InternetGateway: #second an IGW
+   Type: AWS::EC2::InternetGateway
+   Properties:
+    Tags:
+      - Key: Name
+        Value: InternetGateway
+  GatewayAttachement: #attach the IGW
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+       InternetGatewayId: !Ref InternetGateway
+       VpcId: !Ref VPC
+  BastionSubnet: #create the bastion subnet
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Bastion Subnet
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+  AutoScalingPubSubnet: #create public autoscaling 1 subnet for load balancing
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Autoscaling 1 Subnet
+      CidrBlock: 10.0.10.0/24
+      MapPublicIpOnLaunch: true
+  AutoScalingPub2Subnet: #create public autoscaling 2 subnet for load balancing
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 1
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Autoscaling 2 Subnet
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: true
+  AutoScalingSubnet: #create autoscaling 1 subnet
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Autoscaling 1 Subnet
+      CidrBlock: 10.0.20.0/24
+      MapPublicIpOnLaunch: false
+  AutoScaling2Subnet: #create autoscaling 2 subnet
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 1
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Autoscaling 2 Subnet
+      CidrBlock: 10.0.21.0/24
+      MapPublicIpOnLaunch: false
+  NatSubnet: #create the nat subnet
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Nat Subnet
+      CidrBlock: 10.0.40.0/24
+      MapPublicIpOnLaunch: true
+  #spawn security groups
+  BastionHostSecurityGroup: #create bastion security group
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: BastionHostSecurityGroup
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Bastion Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  LoadBalancerSecurityGroup: #create load balancer security group
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: LoadBalancerSecurityGroup
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Loadbalancer Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress: #this should be restricted in production environments
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  AutoScalingSecurityGroup: #create asg security group
+   Type: AWS::EC2::SecurityGroup
+   Properties:
+     GroupDescription: AutoScalingSecurityGroup
+     VpcId: !Ref VPC
+     Tags:
+      - Key: Name
+        Value: AutoScaling Security Group
+     SecurityGroupEgress:
+      - IpProtocol: -1
+        CidrIp: 0.0.0.0/0
+  #ingress to security groups
+  AutoScaling2Ingress: #ingress seperate to prevent dependency
+   Type: AWS::EC2::SecurityGroupIngress
+   Properties:
+     GroupId: !Ref AutoScalingSecurityGroup
+     IpProtocol: tcp
+     ToPort: '22'
+     FromPort: '22'
+     SourceSecurityGroupId: !Ref BastionHostSecurityGroup
+  AutoScaling4Ingress: #ingress seperate to prevent dependency
+   Type: AWS::EC2::SecurityGroupIngress
+   Properties:
+     GroupId: !Ref AutoScalingSecurityGroup
+     IpProtocol: tcp
+     ToPort: '80'
+     FromPort: '80'
+     SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+  AutoScaling5Ingress: #ingress seperate to prevent dependency
+   Type: AWS::EC2::SecurityGroupIngress
+   Properties:
+     GroupId: !Ref AutoScalingSecurityGroup
+     IpProtocol: tcp
+     ToPort: '443'
+     FromPort: '443'
+     SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+  #create route tables
+  PublicRouteTable: #create bastion/public route table
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+  NatRouteTable: #create nat route table
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Nat Route Table
+  AutoScalingRouteTable: #create auto-scaling-route table
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: AutoScaling Route Table
+  #create additonal routes
+  NatRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGateway
+    Properties:
+     DestinationCidrBlock: 0.0.0.0/0
+     GatewayId: !Ref InternetGateway
+     RouteTableId: !Ref NatRouteTable #create route for NAT to IGW
+  PublicInternetRoute: #create route to IGW
+    Type: AWS::EC2::Route
+    DependsOn: InternetGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref InternetGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  AutoScalingRoute: #create route from ASG to NAT for webservers to have internet connection
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AutoScalingRouteTable
+      NatGatewayId: !Ref NatGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  #associate all route tables
+  BastionHostSubnetRouteTableAssociation: #associate route table to subnet
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref BastionSubnet
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref AutoScalingPubSubnet
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref AutoScalingPub2Subnet
+  NatSubnetRouteTableAssociation: #associate nat route table to subnet
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NatRouteTable
+      SubnetId: !Ref NatSubnet
+  AutoScalingSubnetRouteTableAssociation: #associate route table to subnet 1
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AutoScalingRouteTable
+      SubnetId: !Ref AutoScalingSubnet #first asg
+  AutoScaling2SubnetRouteTableAssociation: #associate route table to subnet 2
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AutoScalingRouteTable
+      SubnetId: !Ref AutoScaling2Subnet #second asg
+  #create gateway
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc #claim an elastic ip
+  NatGateway: #create the NAT gateway in a seperate subnet
+      Type: AWS::EC2::NatGateway
+      DependsOn: NatEIP
+      Properties:
+        AllocationId:
+          Fn::GetAtt:
+           - NatEIP
+           - AllocationId
+        SubnetId: !Ref NatSubnet
+Outputs:
+  SVPC:
+    Description: VPC created in skeleton
+    Value: !Ref VPC
+  SInternetGateway:
+    Description: IGW created in skeleton
+    Value: !Ref InternetGateway
+  SBastionSubnet:
+    Description: Bastion subnet created in skeleton
+    Value: !Ref BastionSubnet
+  SAutoScalingPubSubnet:
+    Description: Public subnet 1st az created in skeleton
+    Value: !Ref AutoScalingPubSubnet
+  SAutoScalingPub2Subnet:
+    Description: Public subnet 2nd az created in skeleton
+    Value: !Ref AutoScalingPub2Subnet
+  SAutoScalingSubnet:
+    Description: Autoscaling subnet 1st az created in skeleton
+    Value: !Ref AutoScalingSubnet
+  SAutoScaling2Subnet:
+    Description: Autoscaling subnet 2nd az created in skeleton
+    Value: !Ref AutoScaling2Subnet
+  SBastionHostSecurityGroup:
+    Description: BastionHostSecurityGroup created in skeleton
+    Value: !Ref BastionHostSecurityGroup
+  SLoadBalancerSecurityGroup:
+    Description: Load Balancer Security Group created in skeleton
+    Value: !Ref LoadBalancerSecurityGroup
+  SAutoScalingSecurityGroup:
+    Description: Autoscaling Security Group created in skeleton
+    Value: !Ref AutoScalingSecurityGroup
+  SNatGateway:
+    Description: NAT created in skeleton
+    Value: !Ref NatGateway

@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Parent Stack (PROD) and (ACC)
+Parameters:
+  Repository: #link to repository where application is being stored
+    Type: String
+    Default: "http://github.com/sjoerdsantema/loremipsum"
+  TemplateBucket:
+    Type: String
+    Default: "https://s3.us-east-2.amazonaws.com/big-donkey/"
+    Description: Location of S3 bucket containing the child stacks e.g. https://s3.us-east-2.amazonaws.com/big-donkey/
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: trainingdays
+  Sizing: #added so sizing can easily be changed when needed
+    Type: String
+    Default: "Small"
+    AllowedValues:
+     - Small
+     - Expensive
+     - Mega
+    Description: Select sizing
+  Ami:
+    Type: String
+    Default: ami-40142d25 #this ami is only available in us-east-2 under this number! consider using mapping
+Resources:
+ SkeletonStack:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+    TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
+    TimeoutInMinutes: 60
+ BaseStack:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+    TemplateURL: !Join ["", [!Ref TemplateBucket,'base-stack.yaml'] ]
+    Parameters:
+      AsgGroup: !GetAtt 'AppStack.Outputs.AsgGroup'
+    TimeoutInMinutes: 60
+ AppStack:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+    TemplateURL: !Join ["", [!Ref TemplateBucket,'app.yaml'] ]
+    Parameters:
+      Repository: !Ref Repository
+      BastionSubnet:
+        !GetAtt 'SkeletonStack.Outputs.SBastionSubnet'
+      BastionHostSecurityGroup:
+        !GetAtt 'SkeletonStack.Outputs.SBastionHostSecurityGroup'
+      LoadBalancerSecurityGroup:
+        !GetAtt 'SkeletonStack.Outputs.SLoadBalancerSecurityGroup'
+      AutoScalingSubnet:
+        !GetAtt 'SkeletonStack.Outputs.SAutoScalingSubnet'
+      AutoScaling2Subnet:
+        !GetAtt 'SkeletonStack.Outputs.SAutoScaling2Subnet'
+      AutoScalingPubSubnet:
+        !GetAtt 'SkeletonStack.Outputs.SAutoScalingPubSubnet'
+      AutoScalingPub2Subnet:
+        !GetAtt 'SkeletonStack.Outputs.SAutoScalingPub2Subnet'
+      AutoScalingSecurityGroup:
+        !GetAtt 'SkeletonStack.Outputs.SAutoScalingSecurityGroup'
+      KeyName: !Ref KeyName
+      Sizing: !Ref Sizing
+      Vpc:
+        !GetAtt 'SkeletonStack.Outputs.SVPC'
+      Ami: !Ref Ami
+    TimeoutInMinutes: 60
+Outputs:
+  SVPC:
+   Description: VpcId SkeletonStack
+   Value:
+    !GetAtt 'SkeletonStack.Outputs.SVPC'
+  LoadBalancerEndpoint:
+    Description: (PROD)Endpoint of the load Balancer (http)
+    Value:
+      !Join ["",['http://',!GetAtt 'AppStack.Outputs.LoadBalancer','/index.html']]

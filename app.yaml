@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: (PROD) EC2/application template 
+Parameters:
+  Repository:
+    Description: (PROD)Remote repository with application files
+    Type: String
+  BastionSubnet:
+    Description: (PROD)Bastion Subnet
+    Type: String
+  BastionHostSecurityGroup:
+    Description: (PROD)Bastion Security Group
+    Type: String
+  AutoScalingSecurityGroup:
+    Description: (PROD)Autoscaling Security Group
+    Type: String
+  LoadBalancerSecurityGroup:
+    Description: (PROD)Load Balancer Security Group
+    Type: String
+  AutoScalingSubnet:
+    Description: (PROD)AutoScaling Subnet
+    Type: String
+  AutoScalingPubSubnet:
+    Description: (PROD)Public Autoscaling Subnet
+    Type: String
+  AutoScalingPub2Subnet:
+    Description: (PROD)Public 2nd Autoscaling Subnet
+    Type: String
+  AutoScaling2Subnet:
+    Description: (PROD)AutoScaling 2 Subnet 
+    Type: String
+  KeyName:
+    Description: Keyname to use
+    Type: String
+  Ami: # add mapping for different regions; ami differs per region!
+    Description: Selected Ami from parent-stack
+    Type: String
+  Vpc:
+    Description: (PROD)Vpc from Skeleton Stack
+    Type: String
+  Sizing:
+    Description: Sizing
+    Type: String
+Mappings:
+  EnvironmentSize:
+    Small:
+      "EC2": "t2.micro"
+      "DB": "db.t2.micro"
+    Expensive:
+      "EC2": "db.t2.small"
+      "DB": "db.t2.small"
+    Mega:
+      "EC2": "db.t2.medium"
+      "DB": "db.t2.medium"
+Resources:
+  EC2Profile: #link ec2 role to profile
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref EC2Role
+  EC2Role: #create ec2 role
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  EC2Policy: #create ec2 policy
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EC2Policy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - autoscaling:*
+              - codedeploy:*
+              - ec2:*
+              - cloudwatch:*
+              - elasticloadbalancing:*
+              - iam:AddRoleToInstanceProfile
+              - iam:CreateInstanceProfile
+              - iam:CreateRole
+              - iam:DeleteInstanceProfile
+              - iam:DeleteRole
+              - iam:DeleteRolePolicy
+              - iam:GetInstanceProfile
+              - iam:GetRole
+              - iam:GetRolePolicy
+              - iam:ListInstanceProfilesForRole
+              - iam:ListRolePolicies
+              - iam:ListRoles
+              - iam:PassRole
+              - iam:PutRolePolicy
+              - iam:RemoveRoleFromInstanceProfile
+              - s3:*
+            Resource: "*"
+      Roles:
+        - !Ref EC2Role
+  LoadBalancer: #spawn an application load balancer
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets:
+        - !Ref AutoScalingPubSubnet
+        - !Ref AutoScalingPub2Subnet
+      Type: application
+      Tags:
+        - Key: Name
+          Value: Internet-Facing Application Loadbalancer
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+     DefaultActions:
+       - Type: forward
+         TargetGroupArn: !Ref ALBTargetGroup
+     LoadBalancerArn: !Ref LoadBalancer
+     Port: '80'
+     Protocol: HTTP
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+     HealthCheckIntervalSeconds: 60
+     UnhealthyThresholdCount: 10
+     HealthCheckPath: /
+     Port: 80
+     Protocol: HTTP
+     VpcId: !Ref Vpc
+     TargetGroupAttributes:
+       - Key: deregistration_delay.timeout_seconds
+         Value: 60
+  BastionHostLaunchConfig: #create launch config for bastion host
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+        AssociatePublicIpAddress: true
+        ImageId: !Ref Ami
+        InstanceMonitoring: false
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        PlacementTenancy: default
+        SecurityGroups:
+          - Ref: BastionHostSecurityGroup
+  BastionHostScalingGroup: # create the asg with a bastion host ec2
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName:
+          Ref: BastionHostLaunchConfig
+      MinSize: '1'
+      MaxSize: '1'
+      VPCZoneIdentifier:
+        - !Ref BastionSubnet
+      Tags:
+        - Key: Name
+          Value: (PROD)Bastion host
+          PropagateAtLaunch: true
+  AsgLaunchConfiguration: #create asg launch config
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          full_install: [install_cfn, install_app]
+        install_cfn:
+          files:
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AsgLaunchConfiguration --configsets full_install --region ${AWS::Region}
+                runas=root
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: 'true'
+                ensureRunning: 'true'
+                files: [/etc/cfn/cfn-hup.conf, /etc/cfn/hooks.d/cfn-auto-reloader.conf]
+        install_app:
+          packages:
+            yum:
+              httpd: []
+              git: []
+              stress: []
+          services:
+            sysvinit:
+              httpd:
+                enabled: 'true'
+                ensureRunning: 'true'
+    Properties:
+      AssociatePublicIpAddress: false
+      IamInstanceProfile: !Ref EC2Profile
+      ImageId: !Ref Ami
+      InstanceMonitoring: true
+      InstanceType:
+        !FindInMap [EnvironmentSize, !Ref Sizing, EC2] #find in mappings corresponding ec2 size
+      KeyName: !Ref KeyName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum install -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource AsgLaunchConfiguration --configsets full_install --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource AutoScalingGroup --region ${AWS::Region}
+          git clone ${Repository} /var/www/html
+          cd /home/ec2-user
+          wget https://aws-codedeploy-us-east-2.s3.amazonaws.com/latest/install
+          chmod +x ./install
+          sudo ./install auto
+      PlacementTenancy: default
+      SecurityGroups:
+        - !Ref AutoScalingSecurityGroup
+  ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: 120
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50.0 #scale up at 50 percent avg cpu usage
+  AutoScalingGroup: #spawn auto-scaling group
+    Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT10M
+        Count: '2'
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: '1'
+        MinInstancesInService: '1'
+        PauseTime: PT15M
+        WaitOnResourceSignals: 'true'
+    Properties:
+      LaunchConfigurationName: !Ref AsgLaunchConfiguration
+      MinSize: 1
+      MaxSize: 2
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+      VPCZoneIdentifier:
+        - !Ref AutoScalingSubnet
+        - !Ref AutoScaling2Subnet
+      Tags:
+        - Key: Name
+          Value: (PROD)Webserver
+          PropagateAtLaunch: true
+Outputs:
+  LoadBalancer:
+    Description: Endpoint of load balancer
+    Value: !GetAtt 'LoadBalancer.DNSName'
+  AsgGroup:
+    Description: The autoscaling group containing webservers
+    Value: !Ref AutoScalingGroup

@@ -1,0 +1,9 @@
+{
+  "Parameters" : {
+    "Repository" : "http://github.com/sjoerdsantema/loremipsum",
+    "TemplateBucket" : "https://s3.us-east-2.amazonaws.com/big-donkey/",
+    "KeyName" : "trainingdays",
+    "Ami" : "ami-40142d25",
+    "Sizing" : "Small"
+  }
+}
