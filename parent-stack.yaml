@@ -1,13 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Parent Stack (PROD) and (ACC)
+Description: Parent Stack (PROD) and (ACC) with integrated Codepipeline and CodeDeploy
 Parameters:
   Repository: #link to repository where application is being stored
     Type: String
     Default: "http://github.com/sjoerdsantema/loremipsum"
   TemplateBucket:
     Type: String
-    Default: "https://s3.us-east-2.amazonaws.com/big-donkey/"
-    Description: Location of S3 bucket containing the child stacks e.g. https://s3.us-east-2.amazonaws.com/big-donkey/
+    Default: "https://s3.us-east-2.amazonaws.com/blue-whale/"
+    Description: Location of S3 bucket containing the child stacks e.g. https://s3.us-east-2.amazonaws.com/blue-whale/
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
     Default: trainingdays
@@ -28,12 +28,10 @@ Resources:
   Properties:
     TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
     TimeoutInMinutes: 60
- BaseStack:
+ SkeletonStackAcc:
   Type: AWS::CloudFormation::Stack
   Properties:
-    TemplateURL: !Join ["", [!Ref TemplateBucket,'base-stack.yaml'] ]
-    Parameters:
-      AsgGroup: !GetAtt 'AppStack.Outputs.AsgGroup'
+    TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
     TimeoutInMinutes: 60
  AppStack:
   Type: AWS::CloudFormation::Stack
@@ -63,12 +61,51 @@ Resources:
         !GetAtt 'SkeletonStack.Outputs.SVPC'
       Ami: !Ref Ami
     TimeoutInMinutes: 60
+ AppStackAcc:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+    TemplateURL: !Join ["", [!Ref TemplateBucket,'app.yaml'] ]
+    Parameters:
+      Repository: !Ref Repository
+      BastionSubnet:
+        !GetAtt 'SkeletonStackAcc.Outputs.SBastionSubnet'
+      BastionHostSecurityGroup:
+        !GetAtt 'SkeletonStackAcc.Outputs.SBastionHostSecurityGroup'
+      LoadBalancerSecurityGroup:
+        !GetAtt 'SkeletonStackAcc.Outputs.SLoadBalancerSecurityGroup'
+      AutoScalingSubnet:
+        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingSubnet'
+      AutoScaling2Subnet:
+        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScaling2Subnet'
+      AutoScalingPubSubnet:
+        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingPubSubnet'
+      AutoScalingPub2Subnet:
+        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingPub2Subnet'
+      AutoScalingSecurityGroup:
+        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingSecurityGroup'
+      KeyName: !Ref KeyName
+      Sizing: !Ref Sizing
+      Vpc:
+        !GetAtt 'SkeletonStackAcc.Outputs.SVPC'
+      Ami: !Ref Ami
+    TimeoutInMinutes: 60
+ BaseStack:
+  Type: AWS::CloudFormation::Stack
+  DependsOn:
+   - AppStackAcc
+   - AppStack
+  Properties:
+    TemplateURL: !Join ["", [!Ref TemplateBucket,'base-stack.yaml'] ]
+    Parameters:
+      AsgGroup: !GetAtt 'AppStack.Outputs.AsgGroup'
+      AsgGroupAcc: !GetAtt 'AppStackAcc.Outputs.AsgGroup'
+    TimeoutInMinutes: 10
 Outputs:
-  SVPC:
-   Description: VpcId SkeletonStack
-   Value:
-    !GetAtt 'SkeletonStack.Outputs.SVPC'
   LoadBalancerEndpoint:
     Description: (PROD)Endpoint of the load Balancer (http)
     Value:
       !Join ["",['http://',!GetAtt 'AppStack.Outputs.LoadBalancer','/index.html']]
+  LoadBalancerEndpointAcc:
+    Description: (ACC)Endpoint of the load Balancer (http)
+    Value:
+      !Join ["",['http://',!GetAtt 'AppStackAcc.Outputs.LoadBalancer','/index.html']]

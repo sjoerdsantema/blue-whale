@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: (PROD) EC2/application template 
+Description: EC2/application template (PROD) and (ACC)
 Parameters:
   Repository:
     Description: (PROD)Remote repository with application files
@@ -159,7 +159,7 @@ Resources:
         - !Ref BastionSubnet
       Tags:
         - Key: Name
-          Value: (PROD)Bastion host
+          Value: Bastion host
           PropagateAtLaunch: true
   AsgLaunchConfiguration: #create asg launch config
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -207,7 +207,7 @@ Resources:
       ImageId: !Ref Ami
       InstanceMonitoring: true
       InstanceType:
-        !FindInMap [EnvironmentSize, !Ref Sizing, EC2] #find in mappings corresponding ec2 size
+        !FindInMap [ EnvironmentSize, !Ref Sizing, EC2 ] #find in mappings corresponding ec2 size
       KeyName: !Ref KeyName
       UserData:
         Fn::Base64: !Sub |
@@ -239,7 +239,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Timeout: PT10M
-        Count: '2'
+        Count: '1'
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MaxBatchSize: '1'
@@ -257,7 +257,7 @@ Resources:
         - !Ref AutoScaling2Subnet
       Tags:
         - Key: Name
-          Value: (PROD)Webserver
+          Value: Webserver
           PropagateAtLaunch: true
 Outputs:
   LoadBalancer:

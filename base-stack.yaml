@@ -1,11 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Non-critical parts like codedeploy, alerts, and more
+Description: Integrate Codepipeline and Codedeploy in acc and prod environments. 
 Parameters:
   AsgGroup:
     Type: String
     Description: Autoscaling group from app stack
+  AsgGroupAcc:
+    Type: String
+    Description: Autoscaling group from app stack
+  OAuthToken: #ive put the token in SSM parameter store so github wont automagically revoke my oauth token.
+    Type : 'AWS::SSM::Parameter::Value<String>'
+    Description: Token from Github 
+    Default: '/OAuthToken'
 Resources:
-  CDServiceRole: #CodeDeploy service role
+  CDServiceRole: #codedeploy service role
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -18,7 +25,7 @@ Resources:
             Action:
                  - sts:AssumeRole
       Path: "/"
-  CDPolicy: #create CodeDeploy policy
+  CDPolicy: #create codedeploy policy
     Type: AWS::IAM::Policy
     DependsOn: CDServiceRole
     Properties:
@@ -71,7 +78,19 @@ Resources:
       DeploymentOption: WITHOUT_TRAFFIC_CONTROL
       DeploymentType: IN_PLACE
     ServiceRoleArn: !GetAtt CDServiceRole.Arn
-  CPServiceRole: #CodePipeline service role
+  DeploymentGroupAcc:
+   Type: AWS::CodeDeploy::DeploymentGroup
+   DependsOn: CDPolicy
+   Properties:
+    ApplicationName: !Ref CodeDeploy
+    AutoScalingGroups:
+      - !Ref AsgGroupAcc
+    DeploymentConfigName: CodeDeployDefault.OneAtATime
+    DeploymentStyle:
+      DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+      DeploymentType: IN_PLACE
+    ServiceRoleArn: !GetAtt CDServiceRole.Arn  
+  CPServiceRole: #Codepipeline service role
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -187,9 +206,35 @@ Resources:
                 Owner: sjoerdsantema
                 Repo: loremipsum
                 Branch: master
-                OAuthToken: "340dd708974ad6e6e122a956033387df5902480e"
+                OAuthToken: !Ref OAuthToken
               RunOrder: 1
-        - Name: Deploy
+        - Name: Acceptance
+          Actions:
+            - Name: DeployApplication
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CodeDeploy
+              InputArtifacts:
+                - Name: Application
+              Configuration:
+                ApplicationName: !Ref CodeDeploy
+                DeploymentGroupName: !Ref DeploymentGroupAcc
+              RunOrder: 2
+        - Name: Approval
+          Actions: 
+            - Name: Approval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: 1
+                Provider: Manual
+              Configuration:
+                NotificationArn: !Ref AlarmTopic
+                CustomData: Approve deployment in production.
+              RunOrder: 3
+        - Name: Production
           Actions:
             - Name: DeployApplication
               ActionTypeId:
@@ -202,7 +247,7 @@ Resources:
               Configuration:
                 ApplicationName: !Ref CodeDeploy
                 DeploymentGroupName: !Ref DeploymentGroup
-              RunOrder: 2
+              RunOrder: 4
   SpendingAlarm: #prevent things breaking the bank
     Type: AWS::CloudWatch::Alarm
     Properties:
