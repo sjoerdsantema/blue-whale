@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Integrate Codepipeline and Codedeploy in acc and prod environments. 
+Description: Integrate Codepipeline and Codedeploy in Acc. and Prod. environments. 
 Parameters:
   AsgGroup:
     Type: String
@@ -9,7 +9,7 @@ Parameters:
     Description: Autoscaling group from app stack
   OAuthToken: #ive put the token in SSM parameter store so github wont automagically revoke my oauth token.
     Type : 'AWS::SSM::Parameter::Value<String>'
-    Description: Token from Github 
+    Description: Token from Github stored in AWS SSM  
     Default: '/OAuthToken'
 Resources:
   CDServiceRole: #codedeploy service role

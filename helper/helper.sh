@@ -38,9 +38,7 @@ elif [ "$wish" == "sync-s3" ] || [ "$wish" == 3 ] ; then
         ./helper.sh 
         exit 1
 elif [ "$wish" == "delete" ] || [ "$wish" == 4 ] ; then
-        echo "We shall destroy what you have created. After your confirmation."
-        echo " "
-        echo "We don't take prisoners. Sure about this? Yes or no..."
+        echo "We will zap all stacks to smithereens. Sure about this? Yes or no..."
         read confirmation
           if [ "$confirmation" == "yes" ] ; then 
             aws cloudformation delete-stack --stack-name "$stack"
