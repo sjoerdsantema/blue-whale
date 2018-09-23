@@ -68,8 +68,8 @@ Resources:
       ComputePlatform: Server
   DeploymentGroup:
     DependsOn: CDPolicy
-    Properties:
     Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
       ApplicationName: !Ref CodeDeploy
       AutoScalingGroups:
         - !Ref AsgGroup
@@ -79,8 +79,8 @@ Resources:
         DeploymentType: IN_PLACE
       ServiceRoleArn: !GetAtt CDServiceRole.Arn
   DeploymentGroupAcc:
+    DependsOn: CDPolicy  
     Type: AWS::CodeDeploy::DeploymentGroup
-    DependsOn: CDPolicy
     Properties:
       ApplicationName: !Ref CodeDeploy
       AutoScalingGroups:
