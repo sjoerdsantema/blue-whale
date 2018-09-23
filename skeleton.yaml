@@ -12,16 +12,16 @@ Resources:
         - Key: Name
           Value: Template Generated VPC
   InternetGateway: #second an IGW
-   Type: AWS::EC2::InternetGateway
-   Properties:
-    Tags:
-      - Key: Name
-        Value: InternetGateway
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: InternetGateway
   GatewayAttachement: #attach the IGW
       Type: AWS::EC2::VPCGatewayAttachment
       Properties:
-       InternetGatewayId: !Ref InternetGateway
-       VpcId: !Ref VPC
+        InternetGatewayId: !Ref InternetGateway
+        VpcId: !Ref VPC
   BastionSubnet: #create the bastion subnet
     Type: AWS::EC2::Subnet
     Properties:
@@ -134,41 +134,41 @@ Resources:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
   AutoScalingSecurityGroup: #create asg security group
-   Type: AWS::EC2::SecurityGroup
-   Properties:
-     GroupDescription: AutoScalingSecurityGroup
-     VpcId: !Ref VPC
-     Tags:
-      - Key: Name
-        Value: AutoScaling Security Group
-     SecurityGroupEgress:
-      - IpProtocol: -1
-        CidrIp: 0.0.0.0/0
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: AutoScalingSecurityGroup
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: AutoScaling Security Group
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
   #ingress to security groups
   AutoScaling2Ingress: #ingress seperate to prevent dependency
-   Type: AWS::EC2::SecurityGroupIngress
-   Properties:
-     GroupId: !Ref AutoScalingSecurityGroup
-     IpProtocol: tcp
-     ToPort: '22'
-     FromPort: '22'
-     SourceSecurityGroupId: !Ref BastionHostSecurityGroup
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AutoScalingSecurityGroup
+      IpProtocol: tcp
+      ToPort: '22'
+      FromPort: '22'
+      SourceSecurityGroupId: !Ref BastionHostSecurityGroup
   AutoScaling4Ingress: #ingress seperate to prevent dependency
-   Type: AWS::EC2::SecurityGroupIngress
-   Properties:
-     GroupId: !Ref AutoScalingSecurityGroup
-     IpProtocol: tcp
-     ToPort: '80'
-     FromPort: '80'
-     SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AutoScalingSecurityGroup
+      IpProtocol: tcp
+      ToPort: '80'
+      FromPort: '80'
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
   AutoScaling5Ingress: #ingress seperate to prevent dependency
-   Type: AWS::EC2::SecurityGroupIngress
-   Properties:
-     GroupId: !Ref AutoScalingSecurityGroup
-     IpProtocol: tcp
-     ToPort: '443'
-     FromPort: '443'
-     SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AutoScalingSecurityGroup
+      IpProtocol: tcp
+      ToPort: '443'
+      FromPort: '443'
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
   #create route tables
   PublicRouteTable: #create bastion/public route table
     Type: AWS::EC2::RouteTable
@@ -196,9 +196,9 @@ Resources:
     Type: AWS::EC2::Route
     DependsOn: InternetGateway
     Properties:
-     DestinationCidrBlock: 0.0.0.0/0
-     GatewayId: !Ref InternetGateway
-     RouteTableId: !Ref NatRouteTable #create route for NAT to IGW
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref NatRouteTable #create route for NAT to IGW
   PublicInternetRoute: #create route to IGW
     Type: AWS::EC2::Route
     DependsOn: InternetGateway
@@ -258,8 +258,8 @@ Resources:
       Properties:
         AllocationId:
           Fn::GetAtt:
-           - NatEIP
-           - AllocationId
+            - NatEIP
+            - AllocationId
         SubnetId: !Ref NatSubnet
 Outputs:
   SVPC:

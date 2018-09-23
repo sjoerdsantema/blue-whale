@@ -15,91 +15,91 @@ Parameters:
     Type: String
     Default: "Small"
     AllowedValues:
-     - Small
-     - Expensive
-     - Mega
+      - Small
+      - Expensive
+      - Mega
     Description: Select sizing
   Ami:
     Type: String
     Default: ami-40142d25 #this ami is only available in us-east-2 under this number! consider using mapping
 Resources:
- SkeletonStack:
-  Type: AWS::CloudFormation::Stack
-  Properties:
-    TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
-    TimeoutInMinutes: 60
- SkeletonStackAcc:
-  Type: AWS::CloudFormation::Stack
-  Properties:
-    TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
-    TimeoutInMinutes: 60
- AppStack:
-  Type: AWS::CloudFormation::Stack
-  Properties:
-    TemplateURL: !Join ["", [!Ref TemplateBucket,'app.yaml'] ]
-    Parameters:
-      Repository: !Ref Repository
-      BastionSubnet:
-        !GetAtt 'SkeletonStack.Outputs.SBastionSubnet'
-      BastionHostSecurityGroup:
-        !GetAtt 'SkeletonStack.Outputs.SBastionHostSecurityGroup'
-      LoadBalancerSecurityGroup:
-        !GetAtt 'SkeletonStack.Outputs.SLoadBalancerSecurityGroup'
-      AutoScalingSubnet:
-        !GetAtt 'SkeletonStack.Outputs.SAutoScalingSubnet'
-      AutoScaling2Subnet:
-        !GetAtt 'SkeletonStack.Outputs.SAutoScaling2Subnet'
-      AutoScalingPubSubnet:
-        !GetAtt 'SkeletonStack.Outputs.SAutoScalingPubSubnet'
-      AutoScalingPub2Subnet:
-        !GetAtt 'SkeletonStack.Outputs.SAutoScalingPub2Subnet'
-      AutoScalingSecurityGroup:
-        !GetAtt 'SkeletonStack.Outputs.SAutoScalingSecurityGroup'
-      KeyName: !Ref KeyName
-      Sizing: !Ref Sizing
-      Vpc:
-        !GetAtt 'SkeletonStack.Outputs.SVPC'
-      Ami: !Ref Ami
-    TimeoutInMinutes: 60
- AppStackAcc:
-  Type: AWS::CloudFormation::Stack
-  Properties:
-    TemplateURL: !Join ["", [!Ref TemplateBucket,'app.yaml'] ]
-    Parameters:
-      Repository: !Ref Repository
-      BastionSubnet:
-        !GetAtt 'SkeletonStackAcc.Outputs.SBastionSubnet'
-      BastionHostSecurityGroup:
-        !GetAtt 'SkeletonStackAcc.Outputs.SBastionHostSecurityGroup'
-      LoadBalancerSecurityGroup:
-        !GetAtt 'SkeletonStackAcc.Outputs.SLoadBalancerSecurityGroup'
-      AutoScalingSubnet:
-        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingSubnet'
-      AutoScaling2Subnet:
-        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScaling2Subnet'
-      AutoScalingPubSubnet:
-        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingPubSubnet'
-      AutoScalingPub2Subnet:
-        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingPub2Subnet'
-      AutoScalingSecurityGroup:
-        !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingSecurityGroup'
-      KeyName: !Ref KeyName
-      Sizing: !Ref Sizing
-      Vpc:
-        !GetAtt 'SkeletonStackAcc.Outputs.SVPC'
-      Ami: !Ref Ami
-    TimeoutInMinutes: 60
- BaseStack:
-  Type: AWS::CloudFormation::Stack
-  DependsOn:
-   - AppStackAcc
-   - AppStack
-  Properties:
-    TemplateURL: !Join ["", [!Ref TemplateBucket,'base-stack.yaml'] ]
-    Parameters:
-      AsgGroup: !GetAtt 'AppStack.Outputs.AsgGroup'
-      AsgGroupAcc: !GetAtt 'AppStackAcc.Outputs.AsgGroup'
-    TimeoutInMinutes: 10
+  SkeletonStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
+      TimeoutInMinutes: 60
+  SkeletonStackAcc:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["", [!Ref TemplateBucket,'skeleton.yaml'] ] 
+      TimeoutInMinutes: 60
+  AppStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["", [!Ref TemplateBucket,'app.yaml'] ]
+      Parameters:
+        Repository: !Ref Repository
+        BastionSubnet:
+          !GetAtt 'SkeletonStack.Outputs.SBastionSubnet'
+        BastionHostSecurityGroup:
+          !GetAtt 'SkeletonStack.Outputs.SBastionHostSecurityGroup'
+        LoadBalancerSecurityGroup:
+          !GetAtt 'SkeletonStack.Outputs.SLoadBalancerSecurityGroup'
+        AutoScalingSubnet:
+          !GetAtt 'SkeletonStack.Outputs.SAutoScalingSubnet'
+        AutoScaling2Subnet:
+          !GetAtt 'SkeletonStack.Outputs.SAutoScaling2Subnet'
+        AutoScalingPubSubnet:
+          !GetAtt 'SkeletonStack.Outputs.SAutoScalingPubSubnet'
+        AutoScalingPub2Subnet:
+          !GetAtt 'SkeletonStack.Outputs.SAutoScalingPub2Subnet'
+        AutoScalingSecurityGroup:
+          !GetAtt 'SkeletonStack.Outputs.SAutoScalingSecurityGroup'
+        KeyName: !Ref KeyName
+        Sizing: !Ref Sizing
+        Vpc:
+          !GetAtt 'SkeletonStack.Outputs.SVPC'
+        Ami: !Ref Ami
+      TimeoutInMinutes: 60
+  AppStackAcc:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["", [!Ref TemplateBucket,'app.yaml'] ]
+      Parameters:
+        Repository: !Ref Repository
+        BastionSubnet:
+          !GetAtt 'SkeletonStackAcc.Outputs.SBastionSubnet'
+        BastionHostSecurityGroup:
+          !GetAtt 'SkeletonStackAcc.Outputs.SBastionHostSecurityGroup'
+        LoadBalancerSecurityGroup:
+          !GetAtt 'SkeletonStackAcc.Outputs.SLoadBalancerSecurityGroup'
+        AutoScalingSubnet:
+          !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingSubnet'
+        AutoScaling2Subnet:
+          !GetAtt 'SkeletonStackAcc.Outputs.SAutoScaling2Subnet'
+        AutoScalingPubSubnet:
+          !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingPubSubnet'
+        AutoScalingPub2Subnet:
+          !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingPub2Subnet'
+        AutoScalingSecurityGroup:
+          !GetAtt 'SkeletonStackAcc.Outputs.SAutoScalingSecurityGroup'
+        KeyName: !Ref KeyName
+        Sizing: !Ref Sizing
+        Vpc:
+          !GetAtt 'SkeletonStackAcc.Outputs.SVPC'
+        Ami: !Ref Ami
+      TimeoutInMinutes: 60
+  BaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - AppStackAcc
+      - AppStack
+    Properties:
+      TemplateURL: !Join ["", [!Ref TemplateBucket,'base-stack.yaml'] ]
+      Parameters:
+        AsgGroup: !GetAtt 'AppStack.Outputs.AsgGroup'
+        AsgGroupAcc: !GetAtt 'AppStackAcc.Outputs.AsgGroup'
+      TimeoutInMinutes: 10
 Outputs:
   LoadBalancerEndpoint:
     Description: (PROD)Endpoint of the load Balancer (http)

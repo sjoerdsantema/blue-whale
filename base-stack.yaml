@@ -67,29 +67,29 @@ Resources:
     Properties:
       ComputePlatform: Server
   DeploymentGroup:
-   Type: AWS::CodeDeploy::DeploymentGroup
-   DependsOn: CDPolicy
-   Properties:
-    ApplicationName: !Ref CodeDeploy
-    AutoScalingGroups:
-      - !Ref AsgGroup
-    DeploymentConfigName: CodeDeployDefault.OneAtATime
-    DeploymentStyle:
-      DeploymentOption: WITHOUT_TRAFFIC_CONTROL
-      DeploymentType: IN_PLACE
-    ServiceRoleArn: !GetAtt CDServiceRole.Arn
+    DependsOn: CDPolicy
+    Properties:
+    Type: AWS::CodeDeploy::DeploymentGroup
+      ApplicationName: !Ref CodeDeploy
+      AutoScalingGroups:
+        - !Ref AsgGroup
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      ServiceRoleArn: !GetAtt CDServiceRole.Arn
   DeploymentGroupAcc:
-   Type: AWS::CodeDeploy::DeploymentGroup
-   DependsOn: CDPolicy
-   Properties:
-    ApplicationName: !Ref CodeDeploy
-    AutoScalingGroups:
-      - !Ref AsgGroupAcc
-    DeploymentConfigName: CodeDeployDefault.OneAtATime
-    DeploymentStyle:
-      DeploymentOption: WITHOUT_TRAFFIC_CONTROL
-      DeploymentType: IN_PLACE
-    ServiceRoleArn: !GetAtt CDServiceRole.Arn  
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn: CDPolicy
+    Properties:
+      ApplicationName: !Ref CodeDeploy
+      AutoScalingGroups:
+        - !Ref AsgGroupAcc
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      ServiceRoleArn: !GetAtt CDServiceRole.Arn  
   CPServiceRole: #Codepipeline service role
     Type: AWS::IAM::Role
     Properties:

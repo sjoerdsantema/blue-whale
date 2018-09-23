@@ -80,9 +80,9 @@ Resources:
           - Effect: Allow
             Action:
               - autoscaling:*
+              - cloudwatch:*
               - codedeploy:*
               - ec2:*
-              - cloudwatch:*
               - elasticloadbalancing:*
               - iam:AddRoleToInstanceProfile
               - iam:CreateInstanceProfile
@@ -119,24 +119,24 @@ Resources:
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-     DefaultActions:
-       - Type: forward
-         TargetGroupArn: !Ref ALBTargetGroup
-     LoadBalancerArn: !Ref LoadBalancer
-     Port: '80'
-     Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: '80'
+      Protocol: HTTP
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-     HealthCheckIntervalSeconds: 60
-     UnhealthyThresholdCount: 10
-     HealthCheckPath: /
-     Port: 80
-     Protocol: HTTP
-     VpcId: !Ref Vpc
-     TargetGroupAttributes:
-       - Key: deregistration_delay.timeout_seconds
-         Value: 60
+      UnhealthyThresholdCount: 10
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 60
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref Vpc
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
   BastionHostLaunchConfig: #create launch config for bastion host
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
