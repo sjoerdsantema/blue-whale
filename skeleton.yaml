@@ -100,6 +100,19 @@ Resources:
           Value: Nat Subnet
       CidrBlock: 10.0.40.0/24
       MapPublicIpOnLaunch: true
+  NatSubnet2: #create the nat subnet
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+          Fn::Select:
+            - 1
+            - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Nat Subnet
+      CidrBlock: 10.0.41.0/24
+      MapPublicIpOnLaunch: true
   #spawn security groups
   BastionHostSecurityGroup: #create bastion security group
     Type: AWS::EC2::SecurityGroup
@@ -191,6 +204,13 @@ Resources:
       Tags:
         - Key: Name
           Value: AutoScaling Route Table
+  AutoScaling2RouteTable: #create auto-scaling-route table
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: AutoScaling 2 Route Table 
   #create additonal routes
   NatRoute:
     Type: AWS::EC2::Route
@@ -211,11 +231,13 @@ Resources:
     Properties:
       RouteTableId: !Ref AutoScalingRouteTable
       NatGatewayId: !Ref NatGateway
-      DestinationCidrBlock: 0.0.0.0/0
-  NatEIP:
-    Type: AWS::EC2::EIP
+      DestinationCidrBlock: 0.0.0.0/0 
+  AutoScaling2Route: #create route from ASG to NAT for webservers to have internet connection
+    Type: AWS::EC2::Route
     Properties:
-      Domain: vpc
+      RouteTableId: !Ref AutoScaling2RouteTable
+      NatGatewayId: !Ref NatGateway2
+      DestinationCidrBlock: 0.0.0.0/0 
   #associate all route tables
   BastionHostSubnetRouteTableAssociation: #associate route table to subnet
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -237,6 +259,11 @@ Resources:
     Properties:
       RouteTableId: !Ref NatRouteTable
       SubnetId: !Ref NatSubnet
+  NatSubnet2RouteTableAssociation: #associate nat route table to subnet
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NatRouteTable
+      SubnetId: !Ref NatSubnet2  
   AutoScalingSubnetRouteTableAssociation: #associate route table to subnet 1
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -245,13 +272,17 @@ Resources:
   AutoScaling2SubnetRouteTableAssociation: #associate route table to subnet 2
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref AutoScalingRouteTable
+      RouteTableId: !Ref AutoScaling2RouteTable
       SubnetId: !Ref AutoScaling2Subnet #second asg
   #create gateway
   NatEIP:
     Type: AWS::EC2::EIP
     Properties:
-      Domain: vpc #claim an elastic ip
+      Domain: vpc
+  NatEIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc 
   NatGateway: #create the NAT gateway in a seperate subnet
       Type: AWS::EC2::NatGateway
       DependsOn: NatEIP
@@ -261,6 +292,15 @@ Resources:
             - NatEIP
             - AllocationId
         SubnetId: !Ref NatSubnet
+  NatGateway2: #create the NAT gateway in a seperate subnet
+      Type: AWS::EC2::NatGateway
+      DependsOn: NatEIP2
+      Properties:
+        AllocationId:
+          Fn::GetAtt:
+            - NatEIP2
+            - AllocationId
+        SubnetId: !Ref NatSubnet2
 Outputs:
   SVPC:
     Description: VPC created in skeleton
@@ -295,3 +335,6 @@ Outputs:
   SNatGateway:
     Description: NAT created in skeleton
     Value: !Ref NatGateway
+  SNatGateway2:
+    Description: NAT 2 created in skeleton
+    Value: !Ref NatGateway2
